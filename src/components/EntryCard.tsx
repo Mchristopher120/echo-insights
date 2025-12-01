@@ -7,10 +7,10 @@ import { ptBR } from 'date-fns/locale';
 
 interface Entry {
   id: string;
-  audioUrl: string;
+  audio_url: string;
   duration: number;
   date: Date;
-  insights?: string;
+  insights?: string | null;
 }
 
 interface EntryCardProps {
@@ -54,7 +54,7 @@ export const EntryCard = ({ entry, onGenerateInsights, isGenerating }: EntryCard
           )}
         </div>
 
-        <AudioPlayer audioUrl={entry.audioUrl} duration={entry.duration} />
+        <AudioPlayer audioUrl={entry.audio_url} duration={entry.duration} />
 
         {entry.insights && (
           <div className="mt-4 p-4 bg-gradient-soft rounded-lg border border-border">
