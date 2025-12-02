@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Mic, Square, Loader2 } from 'lucide-react';
+import axios from 'axios';
 import { toast } from 'sonner';
 
 interface AudioRecorderProps {
@@ -10,6 +11,8 @@ interface AudioRecorderProps {
 export const AudioRecorder = ({ onRecordingComplete }: AudioRecorderProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [insight, setInsight] = useState('');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -64,6 +67,33 @@ export const AudioRecorder = ({ onRecordingComplete }: AudioRecorderProps) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Esta função é chamada quando o AudioRecorder finaliza
+  const handleUpload = async (audioBlob: Blob) => {
+    setLoading(true);
+    
+    // 1. Criar o FormData (Simula um form HTML de arquivo)
+    const formData = new FormData();
+    // 'file' deve corresponder ao @RequestParam("file") do Java
+    formData.append('file', audioBlob, 'gravacao.webm'); 
+
+    try {
+      // 2. Enviar para o Backend
+      const response = await axios.post('http://localhost:8080/audio/analyze', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data', // Importante para envio de arquivos
+        },
+      });
+
+      setInsight(response.data);
+      toast.success('Análise concluída!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao processar áudio');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

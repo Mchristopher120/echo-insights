@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { AudioRecorder } from '@/components/AudioRecorder';
 import { EntryCard } from '@/components/EntryCard';
@@ -89,43 +90,55 @@ const Index = () => {
   };
 
   const handleGenerateInsights = async (entryId: string) => {
-    setGeneratingId(entryId);
+    setGeneratingId(entryId);
 
-    // Simulação - você integrará com Gemini no backend
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    const mockInsights = [
-      'Você demonstrou gratidão em várias situações hoje. Continue cultivando esse sentimento positivo.',
-      'Foi um dia produtivo! Você mencionou ter concluído várias tarefas importantes.',
-      'Percebi que você está focando mais no autocuidado. Isso é excelente para seu bem-estar.',
-      'Hoje você expressou alguns desafios. Lembre-se: obstáculos são oportunidades de crescimento.',
-      'Você parece estar mais presente e atento às suas emoções. Continue esse caminho de autoconhecimento.',
-    ];
-
-    const randomInsight = mockInsights[Math.floor(Math.random() * mockInsights.length)];
-
-    try {
-      const { error } = await supabase
-        .from('journal_entries')
-        .update({ insights: randomInsight })
-        .eq('id', entryId);
-
-      if (error) throw error;
-
-      setEntries((prev) =>
-        prev.map((entry) =>
-          entry.id === entryId ? { ...entry, insights: randomInsight } : entry
-        )
-      );
-
-      toast.success('Insights gerados com sucesso!');
-    } catch (error) {
-      console.error('Error updating insights:', error);
-      toast.error('Erro ao salvar insights');
-    } finally {
-      setGeneratingId(null);
+    // 1. Encontrar a entrada na lista local para pegar a URL
+    const entry = entries.find(e => e.id === entryId);
+    if (!entry) {
+        toast.error("Entrada não encontrada");
+        setGeneratingId(null);
+        return;
     }
-  };
+
+    try {
+      // 2. O PULO DO GATO: Baixar o áudio do Supabase para a memória do navegador
+      // O Java precisa do arquivo físico, não apenas do link
+      const audioResponse = await fetch(entry.audio_url);
+      const audioBlob = await audioResponse.blob();
+
+      // 3. Preparar o envio para o Java
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'audio.webm'); 
+      // 'file' deve ser o mesmo nome que você usou no @RequestParam do Java
+
+      // 4. Chamar o seu Backend Java (Ajuste a porta se necessário)
+      const backendResponse = await axios.post('http://localhost:1987/audio/analyzer/analyze', formData);
+      
+      const realInsight = backendResponse.data; // O texto que o Gemini gerou
+
+      // 5. Salvar o insight real no Supabase
+      const { error } = await supabase
+        .from('journal_entries')
+        .update({ insights: realInsight })
+        .eq('id', entryId);
+
+      if (error) throw error;
+
+      // 6. Atualizar a tela
+      setEntries((prev) =>
+        prev.map((item) =>
+          item.id === entryId ? { ...item, insights: realInsight } : item
+        )
+      );
+
+      toast.success('Insights gerados com sucesso!');
+    } catch (error) {
+      console.error('Error updating insights:', error);
+      toast.error('Erro ao gerar insights com IA');
+    } finally {
+      setGeneratingId(null);
+    }
+  };
 
   if (authLoading || loading) {
     return (
