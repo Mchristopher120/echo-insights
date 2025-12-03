@@ -5,7 +5,8 @@ import { useAuth } from './useAuth';
 interface Profile {
   id: string;
   user_id: string;
-  username: string;
+  username: string | null;
+  name: string | null;
   created_at: string;
   updated_at: string;
 }
