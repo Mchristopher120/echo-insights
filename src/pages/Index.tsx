@@ -10,11 +10,13 @@ import { BookOpen, Sparkles, LogOut, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useProfile } from '@/hooks/useProfile';
 import { groupEntriesByMonth, groupEntriesByWeek, Entry } from '@/lib/utils/dateHelpers';
 
 const Index = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, signOut } = useAuth();
+  const { profile, loading: profileLoading } = useProfile();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
@@ -27,12 +29,19 @@ const Index = () => {
     }
   }, [user, authLoading, navigate]);
 
+  // Redirect to setup profile if no profile exists
+  useEffect(() => {
+    if (!authLoading && !profileLoading && user && !profile) {
+      navigate('/setup-profile');
+    }
+  }, [user, authLoading, profileLoading, profile, navigate]);
+
   // Load entries from database
   useEffect(() => {
-    if (user) {
+    if (user && profile) {
       loadEntries();
     }
-  }, [user]);
+  }, [user, profile]);
 
   const loadEntries = async () => {
     try {
@@ -140,7 +149,7 @@ const Index = () => {
     }
   };
 
-  if (authLoading || loading) {
+  if (authLoading || profileLoading || loading) {
     return (
       <div className="min-h-screen bg-gradient-soft flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -148,7 +157,7 @@ const Index = () => {
     );
   }
 
-  if (!user) return null;
+  if (!user || !profile) return null;
 
   const groupedEntries = viewMode === 'week' 
     ? groupEntriesByWeek(entries)
@@ -169,7 +178,7 @@ const Index = () => {
                   Diário Inteligente
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  {user.email}
+                  @{profile.username}
                 </p>
               </div>
             </div>
@@ -239,6 +248,7 @@ const Index = () => {
                         entry={{
                           ...entry,
                           date: new Date(entry.created_at),
+                          insights_audio_url: entry.insights_audio_url,
                         }}
                         onGenerateInsights={handleGenerateInsights}
                         isGenerating={generatingId === entry.id}
