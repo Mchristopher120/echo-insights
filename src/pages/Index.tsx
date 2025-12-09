@@ -13,6 +13,16 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { groupEntriesByMonth, groupEntriesByWeek, Entry } from '@/lib/utils/dateHelpers';
 
+const base64ToBlob = (base64: string, type: string) => {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: type });
+};
+
 const Index = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, signOut } = useAuth();
@@ -101,63 +111,83 @@ const Index = () => {
   const handleGenerateInsights = async (entryId: string) => {
     setGeneratingId(entryId);
 
-    const entry = entries.find(e => e.id === entryId);
-    if (!entry) {
-        toast.error("Entrada não encontrada");
-        setGeneratingId(null);
-        return;
-    }
+    // Encontra a entrada
+    const entry = entries.find(e => e.id === entryId);
+    if (!entry) return;
 
-    try {
-      const audioResponse = await fetch(entry.audio_url);
-      const audioBlob = await audioResponse.blob();
+    try {
+      // Baixa o áudio original temporariamente para enviar pro Java
+      const audioResponse = await fetch(entry.audio_url);
+      const audioBlob = await audioResponse.blob();
 
-      const formData = new FormData();
-      formData.append('file', audioBlob, 'audio.webm'); 
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'audio.webm'); 
 
-      // Chama o backend
-      // NOTA: Confirme se sua porta é 1987 mesmo. Se for padrão Spring, é 8080.
-      const backendResponse = await axios.post('http://localhost:1987/audio/analyzer/analyze', formData);
-      
-      // --- MUDANÇA AQUI ---
-      // Agora o backend devolve um objeto { insight: "...", audioBase64: "..." }
-      const { insight, audioBase64 } = backendResponse.data; 
+      // 1. Chama o Backend
+      const backendResponse = await axios.post('http://localhost:1987/audio/analyzer/analyze', formData);
+      const { insight, audioBase64 } = backendResponse.data; 
 
-      // 1. Salvar o TEXTO no Supabase
-      const { error } = await supabase
-        .from('journal_entries')
-        .update({ insights: insight })
-        .eq('id', entryId);
+      let newAudioUrl = entry.audio_url; // Por padrão mantém o antigo se der erro no áudio novo
 
-      if (error) throw error;
-
-      // 2. Tocar o ÁUDIO gerado pela IA
+      // 2. Processar o Áudio da IA (Upload)
       if (audioBase64) {
         try {
+          const aiBlob = base64ToBlob(audioBase64, 'audio/mp3');
+          
+          // Cria um nome de arquivo novo para não dar conflito de cache
+          // Ex: user_123/insight_17000000.mp3
+          const fileName = `${user?.id}/insight_${Date.now()}.mp3`;
 
-            const audioSrc = `data:audio/mp3;base64,${audioBase64.replace(/\s/g, '')}`;
-            const audioPlayer = new Audio(audioSrc);
-            audioPlayer.play();
-        } catch (audioErr) {
-            console.error("Erro ao reproduzir audio:", audioErr);
+          // Faz o upload para o Storage
+          const { error: uploadError } = await supabase.storage
+            .from('journal-audio')
+            .upload(fileName, aiBlob, { contentType: 'audio/mp3' });
+
+          if (uploadError) throw uploadError;
+
+          // Pega o novo link público
+          const { data: urlData } = supabase.storage
+            .from('journal-audio')
+            .getPublicUrl(fileName);
+            
+          newAudioUrl = urlData.publicUrl;
+
+        } catch (uploadErr) {
+          console.error("Erro ao subir áudio da IA:", uploadErr);
+          toast.error("Erro ao salvar áudio gerado, mantendo original.");
         }
       }
 
- // 3. Atualizar a tela
-  setEntries((prev) =>
-  prev.map((item) =>
-  item.id === entryId ? { ...item, insights: insight } : item
-  )
-  );
+      // 3. Atualizar o Banco de Dados (Sobrescrevendo o audio_url)
+      const { error } = await supabase
+        .from('journal_entries')
+        .update({ 
+            insights: insight,
+            audio_url: newAudioUrl // <--- AQUI OCORRE A MÁGICA
+        })
+        .eq('id', entryId);
 
-    toast.success('Insights gerados e áudio reproduzido!');
-  } catch (error) {
-   console.error('Error updating insights:', error);
-   toast.error('Erro ao gerar insights com IA');
-  } finally {
-   setGeneratingId(null);
-   }
- };
+      if (error) throw error;
+
+      // 4. Atualizar a Lista na Tela
+      // O EntryCard vai perceber que o audio_url mudou e o botão de play tocará o novo som
+      setEntries((prev) =>
+        prev.map((item) =>
+          item.id === entryId 
+            ? { ...item, insights: insight, audio_url: newAudioUrl } 
+            : item
+        )
+      );
+
+      toast.success('Insights gerados e áudio atualizado!');
+
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error('Erro ao processar insights');
+    } finally {
+      setGeneratingId(null);
+    }
+  };
 
   if (authLoading || profileLoading || loading) {
     return (
