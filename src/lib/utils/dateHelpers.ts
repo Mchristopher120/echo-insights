@@ -7,7 +7,6 @@ export interface Entry {
   duration: number;
   created_at: string;
   insights?: string | null;
-  insights_audio_url?: string | null;
   user_id: string;
 }
 
