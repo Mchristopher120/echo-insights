@@ -92,53 +92,63 @@ const Index = () => {
   const handleGenerateInsights = async (entryId: string) => {
     setGeneratingId(entryId);
 
-    // 1. Encontrar a entrada na lista local para pegar a URL
-    const entry = entries.find(e => e.id === entryId);
-    if (!entry) {
-        toast.error("Entrada não encontrada");
-        setGeneratingId(null);
-        return;
-    }
+    const entry = entries.find(e => e.id === entryId);
+    if (!entry) {
+        toast.error("Entrada não encontrada");
+        setGeneratingId(null);
+        return;
+    }
 
     try {
-      // 2. O PULO DO GATO: Baixar o áudio do Supabase para a memória do navegador
-      // O Java precisa do arquivo físico, não apenas do link
-      const audioResponse = await fetch(entry.audio_url);
-      const audioBlob = await audioResponse.blob();
+      const audioResponse = await fetch(entry.audio_url);
+      const audioBlob = await audioResponse.blob();
 
-      // 3. Preparar o envio para o Java
-      const formData = new FormData();
-      formData.append('file', audioBlob, 'audio.webm'); 
-      // 'file' deve ser o mesmo nome que você usou no @RequestParam do Java
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'audio.webm'); 
 
-      // 4. Chamar o seu Backend Java (Ajuste a porta se necessário)
-      const backendResponse = await axios.post('http://localhost:1987/audio/analyzer/analyze', formData);
-      
-      const realInsight = backendResponse.data; // O texto que o Gemini gerou
+      // Chama o backend
+      // NOTA: Confirme se sua porta é 1987 mesmo. Se for padrão Spring, é 8080.
+      const backendResponse = await axios.post('http://localhost:1987/audio/analyzer/analyze', formData);
+      
+      // --- MUDANÇA AQUI ---
+      // Agora o backend devolve um objeto { insight: "...", audioBase64: "..." }
+      const { insight, audioBase64 } = backendResponse.data; 
 
-      // 5. Salvar o insight real no Supabase
+      // 1. Salvar o TEXTO no Supabase
       const { error } = await supabase
         .from('journal_entries')
-        .update({ insights: realInsight })
+        .update({ insights: insight })
         .eq('id', entryId);
 
-      if (error) throw error;
+      if (error) throw error;
 
-      // 6. Atualizar a tela
-      setEntries((prev) =>
-        prev.map((item) =>
-          item.id === entryId ? { ...item, insights: realInsight } : item
-        )
-      );
+      // 2. Tocar o ÁUDIO gerado pela IA
+      if (audioBase64) {
+        try {
 
-      toast.success('Insights gerados com sucesso!');
-    } catch (error) {
-      console.error('Error updating insights:', error);
-      toast.error('Erro ao gerar insights com IA');
-    } finally {
-      setGeneratingId(null);
-    }
-  };
+            const audioSrc = `data:audio/mp3;base64,${audioBase64.replace(/\s/g, '')}`;
+            const audioPlayer = new Audio(audioSrc);
+            audioPlayer.play();
+        } catch (audioErr) {
+            console.error("Erro ao reproduzir audio:", audioErr);
+        }
+      }
+
+ // 3. Atualizar a tela
+  setEntries((prev) =>
+  prev.map((item) =>
+  item.id === entryId ? { ...item, insights: insight } : item
+  )
+  );
+
+    toast.success('Insights gerados e áudio reproduzido!');
+  } catch (error) {
+   console.error('Error updating insights:', error);
+   toast.error('Erro ao gerar insights com IA');
+  } finally {
+   setGeneratingId(null);
+   }
+ };
 
   if (authLoading || loading) {
     return (
