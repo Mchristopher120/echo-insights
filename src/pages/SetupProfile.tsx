@@ -12,7 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 const SetupProfile = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,8 +23,8 @@ const SetupProfile = () => {
       return;
     }
 
-    if (name.trim().length < 2) {
-      toast.error('O nome deve ter pelo menos 2 caracteres');
+    if (username.trim().length < 3) {
+      toast.error('O nome de usuário deve ter pelo menos 3 caracteres');
       return;
     }
 
@@ -35,11 +35,17 @@ const SetupProfile = () => {
         .from('profiles')
         .insert({
           user_id: user.id,
-          name: name.trim(),
-          username: name.trim().toLowerCase().replace(/\s+/g, '_'),
+          username: username.trim(),
         });
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === '23505') {
+          toast.error('Este nome de usuário já está em uso');
+        } else {
+          throw error;
+        }
+        return;
+      }
 
       toast.success('Perfil criado com sucesso!');
       navigate('/');
@@ -62,27 +68,32 @@ const SetupProfile = () => {
             Bem-vindo ao Diário Inteligente
           </h1>
           <p className="text-muted-foreground">
-            Como você gostaria de ser chamado?
+            Escolha um nome de usuário para continuar
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="name">Seu nome</Label>
+            <Label htmlFor="username">Nome de usuário</Label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                id="name"
+                id="username"
                 type="text"
-                placeholder="Ex: João Silva"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                placeholder="seu_nome"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="pl-10"
                 required
-                minLength={2}
-                maxLength={100}
+                minLength={3}
+                maxLength={30}
+                pattern="^[a-zA-Z0-9_]+$"
+                title="Apenas letras, números e underscores são permitidos"
               />
             </div>
+            <p className="text-xs text-muted-foreground">
+              Apenas letras, números e underscores. Mínimo 3 caracteres.
+            </p>
           </div>
 
           <Button

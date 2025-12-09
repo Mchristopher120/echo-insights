@@ -218,7 +218,7 @@ const Index = () => {
                   Diário Inteligente
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  Olá, {profile.name || profile.username}
+                  @{profile.username}
                 </p>
               </div>
             </div>
