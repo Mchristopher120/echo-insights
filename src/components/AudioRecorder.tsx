@@ -80,7 +80,7 @@ export const AudioRecorder = ({ onRecordingComplete }: AudioRecorderProps) => {
 
     try {
       // 2. Enviar para o Backend
-      const response = await axios.post('http://localhost:8080/audio/analyze', formData, {
+      const response = await axios.post('https://echo-insights-d7qg.onrender.com/audio/analyze', formData, {
         headers: {
           'Content-Type': 'multipart/form-data', // Importante para envio de arquivos
         },
