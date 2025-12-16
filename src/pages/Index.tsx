@@ -115,7 +115,7 @@ const Index = () => {
       formData.append('file', audioBlob, 'audio.webm'); 
 
       // 1. Chama o Backend
-      const backendResponse = await axios.post('http://localhost:1987/audio/analyzer/analyze', formData);
+      const backendResponse = await axios.post('https://echo-insights-d7qg.onrender.com/audio/analyzer/analyze', formData);
       const { insight, audioBase64 } = backendResponse.data; 
 
       let newAudioUrl = entry.audio_url; // Por padrão mantém o antigo se der erro no áudio novo
