@@ -21,6 +21,7 @@ export type Database = {
           duration: number
           id: string
           insights: string | null
+          insights_audio_url: string | null
           transcript: string | null
           user_id: string
         }
@@ -30,6 +31,7 @@ export type Database = {
           duration: number
           id?: string
           insights?: string | null
+          insights_audio_url?: string | null
           transcript?: string | null
           user_id: string
         }
@@ -39,8 +41,36 @@ export type Database = {
           duration?: number
           id?: string
           insights?: string | null
+          insights_audio_url?: string | null
           transcript?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          name: string | null
+          updated_at: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          updated_at?: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          updated_at?: string
+          user_id?: string
+          username?: string | null
         }
         Relationships: []
       }
